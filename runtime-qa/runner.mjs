@@ -34,18 +34,25 @@ async function main(){
  await new Promise(ok=>server.listen(0,'127.0.0.1',ok));const origin='http://127.0.0.1:'+server.address().port, target=origin+'/'+entry.split('/').map(encodeURIComponent).join('/');
  let browser;try{
  browser=await chromium.launch({headless:true,chromiumSandbox:false,args:['--disable-dev-shm-usage','--disable-background-networking']});
- const report={outcome:'completed',policy:'runtime-smoke-v1',scope:'trusted pilot; DOM/canvas surface and input dispatch, not gameplay completion or malware certification'};
+ const report={outcome:'completed',policy:'runtime-smoke-v1',evidence_policy:'rqs-observation-v1',scope:'trusted pilot; screenshot change and browser rAF sample, not verified input causality, gameplay completion or malware certification',plan_source:'scripted'};
  for(let [name,viewport,mobile] of [['desktop',{width:1280,height:720},false],['mobile',{width:390,height:844},true]]){
   const ctx=await browser.newContext({viewport,hasTouch:mobile,isMobile:mobile,serviceWorkers:'block',acceptDownloads:false});let page=await ctx.newPage();let errors=0,blocked=0;
-  const d={loaded:false,visible:false,input_dispatched:false,responsive:false,page_errors:0,blocked_requests:0,load_ms:null};
+  const d={loaded:false,visible:false,input_dispatched:false,responsive:false,page_errors:0,blocked_requests:0,load_ms:0,actions:0,raf_fps:0,screen_changed:false,before_sha:'0'.repeat(64),after_sha:'0'.repeat(64)};
   await ctx.route('**/*',route=>{let u;try{u=new URL(route.request().url())}catch{};if(u?.origin===origin&&route.request().method()==='GET')return route.continue();blocked++;return route.abort()});
   page.on('pageerror',()=>errors++);page.on('response',r=>{if(r.status()>=400)errors++});page.on('popup',p=>{blocked++;p.close().catch(()=>{})});
   try{let start=Date.now();let response=await page.goto(target,{waitUntil:'domcontentloaded',timeout:10000});d.loaded=!!response?.ok();d.load_ms=Date.now()-start;await page.waitForTimeout(900);
    let check=await page.evaluate(()=>{const shown=e=>{let r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>4&&r.height>4&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>0};let els=[...document.querySelectorAll('canvas,svg,img,button,main,section')].filter(shown);let visible=els.length>0||!!document.body?.innerText.trim();return {visible,responsive:document.documentElement.scrollWidth<=innerWidth+4&&els.filter(e=>e.tagName==='CANVAS').every(e=>e.getBoundingClientRect().width<=innerWidth+4)}});
    d.visible=check.visible;d.responsive=check.responsive;
-   const x=Math.round(viewport.width/2),y=Math.round(viewport.height/2);
-   if(mobile)await page.touchscreen.tap(x,y);else{await page.mouse.click(x,y);await page.keyboard.press('ArrowRight');await page.keyboard.press('Space')}d.input_dispatched=true;await page.waitForTimeout(1200);
-  }catch{errors++}
+   const digest=buf=>createHash('sha256').update(buf).digest('hex');
+   d.before_sha=digest(await page.screenshot({type:'png',timeout:4000}));
+   const targetButton=page.getByRole('button',{name:/^(start( game)?|play( now)?|begin|시작|게임 시작|플레이)$/i}).first();
+   if(await targetButton.isVisible().catch(()=>false)){await targetButton.click({timeout:1500}).catch(()=>{});d.actions++}
+   for(const [rx,ry] of [[.5,.5],[.33,.5],[.67,.5]]){let x=Math.round(viewport.width*rx),y=Math.round(viewport.height*ry);if(mobile)await page.touchscreen.tap(x,y);else await page.mouse.click(x,y);d.actions++;await page.waitForTimeout(250)}
+   if(!mobile){for(const key of ['ArrowLeft','ArrowRight','Space']){await page.keyboard.press(key);d.actions++}}
+   d.input_dispatched=d.actions>0;
+   d.raf_fps=await page.evaluate(()=>new Promise(resolve=>{let start=performance.now(),frames=0,done=false;const finish=()=>{if(done)return;done=true;resolve(Math.min(240,Math.round(1000*frames/Math.max(1,performance.now()-start)*100)/100))};setTimeout(finish,1100);function tick(){if(done)return;frames++;if(performance.now()-start>=1000)finish();else requestAnimationFrame(tick)}requestAnimationFrame(tick)}));
+   d.after_sha=digest(await page.screenshot({type:'png',timeout:4000}));d.screen_changed=d.before_sha!==d.after_sha;
+  }catch{errors++;if(d.before_sha==='0'.repeat(64)||d.after_sha==='0'.repeat(64))report.evidence_policy='incomplete-observation'}
   d.page_errors=Math.min(9999,errors);d.blocked_requests=Math.min(9999,blocked);report[name]=d;await ctx.close();
  }
  console.log(JSON.stringify({sha,report}));
