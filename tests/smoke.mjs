@@ -51,5 +51,18 @@ for(const [name,viewport,mobile] of [['practice-desktop',{width:1280,height:900}
  await page.locator('#sound').click();assert.equal(await page.locator('#sound').getAttribute('aria-pressed'),'true');await page.locator('#sound').click();assert.equal(await page.locator('#sound').getAttribute('aria-pressed'),'false');await page.locator('#language').click();assert.equal(await page.locator('html').getAttribute('lang'),'ko');assert.equal(await page.locator('.game-card').count(),7);
  assert.deepEqual(errors,[],name+' page errors');await context.close();
 }
-for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html','practice/','practice/lab.js','practice/lab.css']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
+for(const [name,viewport,mobile] of [['courier-desktop',{width:1280,height:900},false],['courier-mobile',{width:390,height:844},true]]){
+ const context=await browser.newContext({viewport,hasTouch:mobile,isMobile:mobile});const page=await context.newPage();let errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'games/skyline-courier/');await page.locator('#districts .district').first().waitFor();
+ assert.equal(await page.locator('#districts .district').count(),3);assert(await page.locator('[data-route="1"]').isDisabled());assert(await page.locator('[data-upgrade="0"]').isDisabled());assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+ await page.locator('#start').click();await page.locator('#board').waitFor({state:'visible'});
+ await page.locator('#left').click();assert.match(await page.locator('#status').innerText(),/Lane 1/);
+ await page.locator('#right').click();assert.match(await page.locator('#status').innerText(),/Lane 2/);
+ await page.locator('#boost').click();assert(await page.locator('#boost').isDisabled());
+ await page.locator('#pause').click();await page.locator('#paused').waitFor({state:'visible'});assert(!(await page.locator('#board').isVisible()));await page.locator('#resume').click();await page.locator('#board').waitFor({state:'visible'});
+ await page.locator('#quit').click();await page.locator('#result').waitFor({state:'visible'});assert(await page.locator('#next').isDisabled());await page.locator('#retry').click();assert.equal(await page.locator('#score').innerText(),'0');
+ await page.locator('#quit').click();await page.locator('#garage').click();await page.locator('#menu').waitFor({state:'visible'});
+ await page.locator('#lang').click();assert.equal(await page.locator('html').getAttribute('lang'),'ko');assert.deepEqual(errors,[],name+' page errors');await context.close();console.log('PASS '+name);
+}
+for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html','practice/','practice/lab.js','practice/lab.css','games/skyline-courier/']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
 }finally{await browser.close();server.close()}
