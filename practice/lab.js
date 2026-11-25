@@ -9,6 +9,7 @@ const games=[
 {id:'runner',name:'Grid Runner',ko:'그리드 러너',genre:'Action',color:'#ff8c91',bg:'#432b42',symbol:'↝',en:'Guide a growing trail through the grid without collisions.',kr:'길어지는 꼬리를 조작해 충돌 없이 먹이를 모으세요.',controls:['Arrow keys or swipe. Left/right buttons rotate; action turns clockwise.','방향키 또는 스와이프. 좌우 버튼은 회전하며 액션은 시계 방향으로 회전합니다.']},
 {id:'pulse',name:'Pulse Timing',ko:'펄스 타이밍',genre:'Arcade',color:'#ffd86b',bg:'#463a2c',symbol:'◎',en:'Stop the moving marker inside the target zone. Each hit raises the speed.',kr:'움직이는 표시기를 목표 구간에 멈추세요. 성공할수록 빨라집니다.',controls:['Press Space, action, or tap the board when the marker enters the green zone.','표시기가 초록 구간에 들어오면 스페이스, 액션 또는 화면을 터치하세요.']}
 ];
+canvas.tabIndex=0;
 let ko=false,game=null,state=null,active=false,paused=false,raf=0,last=0,held=new Set(),gesture=null;
 const t=(en,kr)=>ko?kr:en,clamp=(x,a,b)=>Math.max(a,Math.min(b,x)),rand=(a,b)=>a+Math.random()*(b-a),int=n=>Math.floor(Math.random()*n);
 function best(){try{return Number(localStorage.getItem('arena-practice-'+game.id))||0}catch{return 0}}
@@ -27,7 +28,7 @@ function food(){let free=[];for(let y=0;y<14;y++)for(let x=0;x<22;x++)if(!state.
 function signalShow(){state.seq.push(int(4));state.index=0;state.flash=0;state.showTime=.3;state.phase='show'}
 function start(){stop();state={score:0,time:45,elapsed:0,ended:false,combo:0,round:0};let s=state;
 switch(game.id){case'meteor':nextMeteor();break;case'courier':Object.assign(s,{lane:1,objects:[],spawn:.15,hp:3});break;case'breaker':Object.assign(s,{paddle:320,ball:{x:320,y:330,vx:180,vy:-240},launched:false,hp:3,bricks:Array.from({length:30},(_,i)=>({x:45+i%10*55,y:38+Math.floor(i/10)*31,on:true,color:['#be9bff','#7ce4ce','#f6bc69'][Math.floor(i/10)]}))});break;case'signal':Object.assign(s,{seq:[],phase:'show'});signalShow();break;case'circuit':newCircuit();break;case'runner':Object.assign(s,{snake:[{x:10,y:7},{x:9,y:7},{x:8,y:7}],dir:0,pending:0,step:0});food();break;case'pulse':Object.assign(s,{angle:0,zone:rand(0,Math.PI*2),speed:2.4});break}
-active=true;paused=false;$('overlay').hidden=true;label('pause',t('Pause','일시정지'));label('message',t('Go!','시작!'));last=performance.now();raf=requestAnimationFrame(loop)}
+active=true;paused=false;$('overlay').hidden=true;label('pause',t('Pause','일시정지'));label('message',t('Go!','시작!'));canvas.focus({preventScroll:true});last=performance.now();raf=requestAnimationFrame(loop)}
 function add(n){state.score=Math.max(0,state.score+n);label('score',state.score)}
 function turn(delta){if(game.id==='runner')state.pending=(state.dir+delta+4)%4}
 function action(a){if(!active||!state)return;let s=state;
@@ -41,7 +42,7 @@ switch(game.id){case'meteor':{let o=s.target;if(Math.hypot(x-o.x,y-o.y)<=o.r+8){
 case'courier':s.lane=clamp(Math.floor(x/(W/3)),0,2);break;
 case'breaker':s.paddle=clamp(x,47,593);s.launched=true;break;
 case'signal':{if(s.phase!=='input')break;let i=(x>=320?1:0)+(y>=200?2:0);if(i===s.seq[s.index]){s.index++;add(2);s.lastPad=i;s.padTime=.18;if(s.index===s.seq.length){add(8);signalShow()}}else{add(-2);s.index=0;s.flash=0;s.showTime=.4;s.phase='show';label('message',t('Watch again','다시 순서를 확인하세요'))}break}
-case'circuit':{let col=Math.floor((x-170)/60),row=Math.floor((y-50)/60);if(col>=0&&col<5&&row>=0&&row<5){flip(row*5+col);if(!s.lights.some(Boolean)){add(25);s.round++;newCircuit()}else add(1)}break}
+case'circuit':{let col=Math.floor((x-170)/60),row=Math.floor((y-50)/60);if(col>=0&&col<5&&row>=0&&row<5){flip(row*5+col);if(!s.lights.some(Boolean)){add(25);s.round++;newCircuit()}else {s.moves=(s.moves||0)+1;label('message',t('Moves: ','이동: ')+s.moves)}}break}
 case'pulse':action('action');break}}
 function step(dt){let s=state;s.time-=dt;s.elapsed+=dt;if(s.time<=0){s.time=0;end(t('Time up','시간 종료'));return}
 switch(game.id){
@@ -66,7 +67,7 @@ case'runner':{let unit=26,ox=34,oy=18;if(s.food)circle(ox+s.food.x*unit+13,oy+s.
 case'pulse':{let x=320,y=194,r=115;ctx.lineWidth=18;ctx.strokeStyle='#46556a';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();let half=Math.max(.17,.42-s.combo*.016);ctx.strokeStyle='#c6f777';ctx.beginPath();ctx.arc(x,y,r,s.zone-half,s.zone+half);ctx.stroke();circle(x+Math.cos(s.angle)*r,y+Math.sin(s.angle)*r,12,'#fff');text(x,y+4,'×'+s.combo,c,36);text(x,y+35,t('TAP IN GREEN','초록 구간에서 터치'),c,13);break}}
 }
 function loop(now){if(!active)return;let dt=Math.min(.04,(now-last)/1000);last=now;step(dt);draw();if(active)raf=requestAnimationFrame(loop)}
-function togglePause(){if(!state||state.ended)return;if(active){active=false;paused=true;cancelAnimationFrame(raf);held.clear();$('overlay').hidden=false;label('overlay-title',t('Paused','일시정지'));label('overlay-copy',t('Resume when ready.','준비되면 계속하세요.'));label('start',t('Resume','계속'));label('pause',t('Resume','계속'))}else if(paused){paused=false;active=true;$('overlay').hidden=true;label('pause',t('Pause','일시정지'));last=performance.now();raf=requestAnimationFrame(loop)}}
+function togglePause(){if(!state||state.ended)return;if(active){active=false;paused=true;cancelAnimationFrame(raf);held.clear();$('overlay').hidden=false;label('overlay-title',t('Paused','일시정지'));label('overlay-copy',t('Resume when ready.','준비되면 계속하세요.'));label('start',t('Resume','계속'));label('pause',t('Resume','계속'))}else if(paused){paused=false;active=true;$('overlay').hidden=true;label('pause',t('Pause','일시정지'));canvas.focus({preventScroll:true});last=performance.now();raf=requestAnimationFrame(loop)}}
 $('start').onclick=()=>paused?togglePause():start();$('pause').onclick=togglePause;$('back').onclick=()=>{stop();game=null;state=null;$('play').hidden=true;$('catalog').hidden=false;$('catalog').scrollIntoView({block:'start'})};$('language').onclick=()=>{ko=!ko;translate()};for(let a of ['left','right','action'])$(a).onclick=()=>action(a);
 function point(e){let r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
 canvas.addEventListener('pointerdown',e=>{if(!active)return;let p=point(e);gesture=p;canvas.setPointerCapture?.(e.pointerId);if(game.id!=='runner')tap(p.x,p.y)});
