@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve, extname } from 'node:path';
-const root=process.cwd(), types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.xml':'application/xml'};
+const root=process.cwd(), types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css; charset=utf-8','.xml':'application/xml'};
 const server=createServer(async(req,res)=>{try{let url=new URL(req.url,'http://localhost');let path=resolve(root,'.'+url.pathname+(url.pathname.endsWith('/')?'index.html':''));if(!path.startsWith(root+'/'))throw Error('invalid path');let data=await readFile(path);res.writeHead(200,{'content-type':types[extname(path)]||'text/plain'});res.end(data)}catch{res.writeHead(404);res.end('Not found')}});
 await new Promise(ok=>server.listen(0,'127.0.0.1',ok));const base='http://127.0.0.1:'+server.address().port+'/';
 const source=await readFile('index.html','utf8');for(const m of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(m[1].trim())new Function(m[1]);
@@ -37,7 +37,7 @@ for(const [name,viewport,mobile] of [['practice-desktop',{width:1280,height:900}
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),name+' horizontal overflow');
  for(const id of ['meteor','courier','breaker','signal','circuit','runner','pulse']){
   await page.locator('button[data-game="'+id+'"]').click();await page.locator('#difficulty').selectOption('hard');assert(await page.locator('#goal-text').innerText());await page.locator('#start').click();assert(await page.locator('#difficulty').isDisabled());await page.locator('#overlay').waitFor({state:'hidden'});
-  const before=await page.locator('#canvas').evaluate(c=>c.toDataURL());const b=await page.locator('#canvas').boundingBox();assert(b&&b.width>0);
+  await page.locator('#canvas').scrollIntoViewIfNeeded();const before=await page.locator('#canvas').evaluate(c=>c.toDataURL());const b=await page.locator('#canvas').boundingBox();assert(b&&b.width>0);
   if(mobile){await page.touchscreen.tap(b.x+b.width*.5,b.y+b.height*.5);if(await page.locator('#right').isEnabled())await page.locator('#right').tap();if(await page.locator('#action').isEnabled())await page.locator('#action').tap()}
   else{await page.mouse.click(b.x+b.width*.5,b.y+b.height*.5);await page.keyboard.press('ArrowRight');await page.keyboard.press('Space')}
   await page.waitForTimeout(350);
