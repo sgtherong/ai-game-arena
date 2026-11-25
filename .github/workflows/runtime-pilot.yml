@@ -8,28 +8,41 @@ on:
       - '.github/workflows/runtime-pilot.yml'
 permissions:
   contents: read
+concurrency:
+  group: arena-trusted-runtime-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   trusted-fixture:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Build isolated pilot image
         run: docker build -t arena-runtime-pilot:0.98 runtime-qa
-      - name: Run first-party fixture without network or secrets
+      - name: Run fixed first-party games and score RQS
+        shell: bash
         run: |
-          python3 runtime-qa/make_fixture.py /tmp/arena-fixture.zip
-          python3 runtime-qa/worker.py --trusted-pilot --fixture /tmp/arena-fixture.zip > /tmp/arena-report.json
-          cat /tmp/arena-report.json
-          python3 - <<'PY'
-          import json
-          r=json.load(open('/tmp/arena-report.json'))
-          assert r['outcome']=='completed' and r['evidence_policy']=='rqs-observation-v1',r
-          for k in ['desktop','mobile']:
-              d=r[k]
-              assert all(d[x] for x in ['loaded','visible','input_dispatched','responsive']),d
-              assert d['page_errors']==0 and d['blocked_requests']==0,d
-              assert d['actions']>0 and 0<=d['raf_fps']<=240,d
-              assert len(d['before_sha'])==64 and len(d['after_sha'])==64,d
-              assert d['screen_changed']==(d['before_sha']!=d['after_sha']),d
-          PY
+          set -euo pipefail
+          mkdir -p /tmp/arena-ci-report
+          echo '## Trusted first-party RQS' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Fixture | Desktop | Mobile | RQS |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---:|---:|---:|' >> "$GITHUB_STEP_SUMMARY"
+          for game in arcade puzzle; do
+            python3 runtime-qa/make_fixture.py /tmp/arena-fixture.zip "$game"
+            python3 runtime-qa/worker.py --trusted-pilot --fixture /tmp/arena-fixture.zip > "/tmp/arena-ci-report/$game.json"
+            cat "/tmp/arena-ci-report/$game.json"
+            python3 runtime-qa/score_fixture.py "/tmp/arena-ci-report/$game.json" > "/tmp/arena-ci-report/$game-score.json"
+            cat "/tmp/arena-ci-report/$game-score.json"
+            python3 -c 'import json,sys; s=json.load(open(sys.argv[2])); print("| "+sys.argv[1]+" | "+str(s["desktop"])+" | "+str(s["mobile"])+" | "+str(s["rqs"])+" |")' "$game" "/tmp/arena-ci-report/$game-score.json" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo 'Synthetic first-party fixtures only. No live game submissions, provider calls or database writes.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish first-party evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-party-rqs-${{ github.run_id }}
+          path: /tmp/arena-ci-report/*.json
+          retention-days: 3
+          if-no-files-found: ignore
