@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build isolated pilot image
-        run: docker build -t arena-runtime-pilot:0.97 runtime-qa
+        run: docker build -t arena-runtime-pilot:0.98 runtime-qa
       - name: Run first-party fixture without network or secrets
         run: |
           python3 runtime-qa/make_fixture.py /tmp/arena-fixture.zip
@@ -24,9 +24,12 @@ jobs:
           python3 - <<'PY'
           import json
           r=json.load(open('/tmp/arena-report.json'))
-          assert r['outcome']=='completed',r
+          assert r['outcome']=='completed' and r['evidence_policy']=='rqs-observation-v1',r
           for k in ['desktop','mobile']:
               d=r[k]
               assert all(d[x] for x in ['loaded','visible','input_dispatched','responsive']),d
               assert d['page_errors']==0 and d['blocked_requests']==0,d
+              assert d['actions']>0 and 0<=d['raf_fps']<=240,d
+              assert len(d['before_sha'])==64 and len(d['after_sha'])==64,d
+              assert d['screen_changed']==(d['before_sha']!=d['after_sha']),d
           PY
