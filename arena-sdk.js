@@ -1,0 +1,2 @@
+/* Include inside a game, not on the portal. Client events are not proof of gameplay. */
+(()=>{let token=null;const send=(event)=>{if(token)parent.postMessage({arena:1,token,event},'*')};window.addEventListener('message',e=>{if(e.source===parent&&e.data?.arena===1&&e.data.event==='init'&&typeof e.data.token==='string'){token=e.data.token;send('ready')}});window.ArenaSDK=Object.freeze({input:()=>send('input'),complete:()=>send('complete')});window.addEventListener('pointerdown',()=>send('input'));window.addEventListener('keydown',()=>send('input'));})();
