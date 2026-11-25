@@ -6,3 +6,5 @@ body.playing .hero,body.playing #notice{display:none}#play,#catalog{scroll-margi
 
 /* Independent round panel: no absolute overlay or overlapping hit areas. */
 #overlay{position:static;inset:auto;z-index:auto;min-height:220px;display:flex;justify-content:center;overflow:visible;border:1px solid #3b5268;margin:0 0 12px}#overlay[hidden],#board-stage[hidden]{display:none!important}#board-stage{position:static}#overlay button{position:static;flex-shrink:0;min-height:44px}body.playing header{position:static}body.playing #play{scroll-margin-top:0}@media(max-width:760px){#overlay:not([hidden]){position:static;min-height:205px;overflow:visible}body.playing main{padding-top:12px}}
+
+.panel-feature{display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid #456a65;border-radius:16px;background:linear-gradient(110deg,#163134,#182a42);padding:20px;margin:20px 0}.panel-feature h2{margin:6px 0}.panel-feature .cta{white-space:nowrap}body.playing #candidate-feature{display:none}@media(max-width:600px){.panel-feature{align-items:stretch;flex-direction:column}.panel-feature .cta{text-align:center}}
