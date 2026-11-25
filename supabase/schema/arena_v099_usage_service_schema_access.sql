@@ -1,0 +1,1 @@
+grant usage on schema arena_internal to service_role;
