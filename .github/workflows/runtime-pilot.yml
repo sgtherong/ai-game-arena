@@ -1,0 +1,32 @@
+name: Runtime QA trusted fixture
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'runtime-qa/**'
+      - '.github/workflows/runtime-pilot.yml'
+permissions:
+  contents: read
+jobs:
+  trusted-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated pilot image
+        run: docker build -t arena-runtime-pilot:0.97 runtime-qa
+      - name: Run first-party fixture without network or secrets
+        run: |
+          python3 runtime-qa/make_fixture.py /tmp/arena-fixture.zip
+          python3 runtime-qa/worker.py --trusted-pilot --fixture /tmp/arena-fixture.zip > /tmp/arena-report.json
+          cat /tmp/arena-report.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/arena-report.json'))
+          assert r['outcome']=='completed',r
+          for k in ['desktop','mobile']:
+              d=r[k]
+              assert all(d[x] for x in ['loaded','visible','input_dispatched','responsive']),d
+              assert d['page_errors']==0 and d['blocked_requests']==0,d
+          PY
