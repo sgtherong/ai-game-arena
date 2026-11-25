@@ -7,14 +7,14 @@ import argparse, hashlib, json, os, pathlib, subprocess, tempfile, urllib.reques
 MAX=2*1024*1024
 p=argparse.ArgumentParser()
 p.add_argument("--trusted-pilot",action="store_true",required=True)
-p.add_argument("--image",default="arena-runtime-pilot:0.97")
+p.add_argument("--image",default="arena-runtime-pilot:0.98")
 p.add_argument("--fixture",type=pathlib.Path,help="Local trusted ZIP only; no remote job or credentials.")
 args=p.parse_args()
-def execute(data):
+def execute(data,plan=None):
     with tempfile.TemporaryDirectory(prefix="arena-qa-") as tmp:
         path=pathlib.Path(tmp)/"game.zip";path.write_bytes(data);path.chmod(0o444)
         name="arena-qa-"+uuid.uuid4().hex
-        cmd=["docker","run","--rm","--name",name,"--network","none","--read-only","--cap-drop","ALL","--security-opt","no-new-privileges","--pids-limit","192","--memory","1g","--cpus","1","--shm-size","128m","--tmpfs","/tmp:rw,nosuid,nodev,size=384m","--env","HOME=/tmp","--mount","type=bind,src="+str(path)+",dst=/input/game.zip,readonly",args.image]
+        cmd=["docker","run","--rm","--name",name,"--network","none","--read-only","--cap-drop","ALL","--security-opt","no-new-privileges","--pids-limit","192","--memory","1g","--cpus","1","--shm-size","128m","--tmpfs","/tmp:rw,nosuid,nodev,size=384m","--env","HOME=/tmp","--env","ARENA_QA_PLAN="+json.dumps(plan or {},separators=(",",":")),"--mount","type=bind,src="+str(path)+",dst=/input/game.zip,readonly",args.image]
         try:
             out=subprocess.run(cmd,capture_output=True,text=True,timeout=65,check=False)
             lines=out.stdout.strip().splitlines()
@@ -48,7 +48,7 @@ try:
         if urllib.parse.urlsplit(f.geturl()).netloc!=b.netloc:raise ValueError("Unexpected redirect")
         data=f.read(MAX+1)
     if len(data)>MAX or hashlib.sha256(data).hexdigest()!=job["sha"]:raise ValueError("Package mismatch")
-    report=execute(data)
+    report=execute(data,job.get("plan"))
 except Exception:pass
 result=call({"action":"finish","version_id":job["version_id"],"lease":job["lease"],"sha":job["sha"],"report":report})
 print("QA",job["version_id"],result.get("status"))
