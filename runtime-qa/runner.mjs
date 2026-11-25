@@ -45,10 +45,19 @@ async function main(){
    d.visible=check.visible;d.responsive=check.responsive;
    const digest=buf=>createHash('sha256').update(buf).digest('hex');
    d.before_sha=digest(await page.screenshot({type:'png',timeout:4000}));
+   const allowed=['start','center','left','right','up','down','space','enter','arrowleft','arrowright','arrowup','arrowdown'];
+   let plan={source:'scripted',actions:['start','center','left','right','arrowleft','arrowright','space']};
+   try{const p=JSON.parse(process.env.ARENA_QA_PLAN||'null');if(p?.source==='ai_preplanned'&&Array.isArray(p.actions)&&p.actions.length>=3&&p.actions.length<=8&&p.actions.every(x=>allowed.includes(x)))plan=p}catch{}
+   report.plan_source=plan.source;
+   const coords={center:[.5,.5],left:[.33,.5],right:[.67,.5],up:[.5,.3],down:[.5,.7]};
+   const keys={space:'Space',enter:'Enter',arrowleft:'ArrowLeft',arrowright:'ArrowRight',arrowup:'ArrowUp',arrowdown:'ArrowDown'};
    const targetButton=page.getByRole('button',{name:/^(start( game)?|play( now)?|begin|시작|게임 시작|플레이)$/i}).first();
-   if(await targetButton.isVisible().catch(()=>false)){await targetButton.click({timeout:1500}).catch(()=>{});d.actions++}
-   for(const [rx,ry] of [[.5,.5],[.33,.5],[.67,.5]]){let x=Math.round(viewport.width*rx),y=Math.round(viewport.height*ry);if(mobile)await page.touchscreen.tap(x,y);else await page.mouse.click(x,y);d.actions++;await page.waitForTimeout(250)}
-   if(!mobile){for(const key of ['ArrowLeft','ArrowRight','Space']){await page.keyboard.press(key);d.actions++}}
+   for(const action of [...new Set(['start','center',...plan.actions])].slice(0,10)){
+     if(action==='start'){if(await targetButton.isVisible().catch(()=>false)){try{await targetButton.click({timeout:1500});d.actions++}catch{}}}
+     else if(coords[action]){const [rx,ry]=coords[action];let x=Math.round(viewport.width*rx),y=Math.round(viewport.height*ry);if(mobile)await page.touchscreen.tap(x,y);else await page.mouse.click(x,y);d.actions++}
+     else if(keys[action]&&!mobile){await page.keyboard.press(keys[action]);d.actions++}
+     await page.waitForTimeout(150);
+   }
    d.input_dispatched=d.actions>0;
    d.raf_fps=await page.evaluate(()=>new Promise(resolve=>{let start=performance.now(),frames=0,done=false;const finish=()=>{if(done)return;done=true;resolve(Math.min(240,Math.round(1000*frames/Math.max(1,performance.now()-start)*100)/100))};setTimeout(finish,1100);function tick(){if(done)return;frames++;if(performance.now()-start>=1000)finish();else requestAnimationFrame(tick)}requestAnimationFrame(tick)}));
    d.after_sha=digest(await page.screenshot({type:'png',timeout:4000}));d.screen_changed=d.before_sha!==d.after_sha;
