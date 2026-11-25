@@ -36,18 +36,19 @@ for(const [name,viewport,mobile] of [['practice-desktop',{width:1280,height:900}
  await page.goto(base+'practice/');await page.locator('.game-card').first().waitFor();assert.equal(await page.locator('.game-card').count(),7);
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),name+' horizontal overflow');
  for(const id of ['meteor','courier','breaker','signal','circuit','runner','pulse']){
-  await page.locator('button[data-game="'+id+'"]').click();await page.locator('#start').click();await page.locator('#overlay').waitFor({state:'hidden'});
+  await page.locator('button[data-game="'+id+'"]').click();await page.locator('#difficulty').selectOption('hard');assert(await page.locator('#goal-text').innerText());await page.locator('#start').click();assert(await page.locator('#difficulty').isDisabled());await page.locator('#overlay').waitFor({state:'hidden'});
   const before=await page.locator('#canvas').evaluate(c=>c.toDataURL());const b=await page.locator('#canvas').boundingBox();assert(b&&b.width>0);
-  if(mobile){await page.touchscreen.tap(b.x+b.width*.5,b.y+b.height*.5);await page.locator('#right').tap();await page.locator('#action').tap()}
+  if(mobile){await page.touchscreen.tap(b.x+b.width*.5,b.y+b.height*.5);if(await page.locator('#right').isEnabled())await page.locator('#right').tap();if(await page.locator('#action').isEnabled())await page.locator('#action').tap()}
   else{await page.mouse.click(b.x+b.width*.5,b.y+b.height*.5);await page.keyboard.press('ArrowRight');await page.keyboard.press('Space')}
   await page.waitForTimeout(350);
   assert(await page.locator('#time').isVisible(),id+' HUD visible');
   const after=await page.locator('#canvas').evaluate(c=>c.toDataURL());assert.notEqual(after,'data:,',id+' canvas readable');
   await page.locator('#pause').click();await page.locator('#overlay').waitFor({state:'visible'});await page.locator('#start').click();await page.locator('#overlay').waitFor({state:'hidden'});
+  await page.locator('#end-round').click();await page.locator('#overlay').waitFor({state:'visible'});assert(await page.locator('#overlay-copy').innerText());assert(await page.locator('#difficulty').isEnabled());await page.locator('#start').click();await page.locator('#overlay').waitFor({state:'hidden'});assert.equal(await page.locator('#score').innerText(),'0');
   await page.locator('#back').click();await page.locator('#catalog').waitFor({state:'visible'});
   console.log('PASS '+name+' '+id);
  }
- await page.locator('#language').click();assert.equal(await page.locator('html').getAttribute('lang'),'ko');assert.equal(await page.locator('.game-card').count(),7);
+ await page.locator('#sound').click();assert.equal(await page.locator('#sound').getAttribute('aria-pressed'),'true');await page.locator('#sound').click();assert.equal(await page.locator('#sound').getAttribute('aria-pressed'),'false');await page.locator('#language').click();assert.equal(await page.locator('html').getAttribute('lang'),'ko');assert.equal(await page.locator('.game-card').count(),7);
  assert.deepEqual(errors,[],name+' page errors');await context.close();
 }
 for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html','practice/','practice/lab.js','practice/lab.css']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
