@@ -15,10 +15,10 @@ await page.route('https://cdn.jsdelivr.net/**',async route=>{if(!route.request()
 const user=role?{id:'11111111-1111-4111-8111-111111111111',email:'qa@example.invalid'}:null;
 const games=['neon','orbit','tiles'].map(id=>({id,active:id+'-version',owner:null,paused:false}));
 const versions=games.map(g=>({id:g.active,game_id:g.id,status:'approved',kind:'demo',created:new Date().toISOString()}));
-function builder(table){let rows=table==='games'?games:table==='versions'?versions:table==='profiles'?[{role}]:[];let one=false;let b={select(){return b},eq(k,v){rows=rows.filter(x=>x[k]===v);return b},order(){return b},limit(n){rows=rows.slice(0,n);return b},lte(){return b},gt(){return b},single(){one=true;return b},then(ok,fail){return Promise.resolve({data:one?rows[0]:rows,error:null}).then(ok,fail)}};return b}
+function builder(table){let rows=table==='games'?games:table==='versions'?versions:table==='profiles'?[{id:user?.id,role}]:[];let one=false;let b={select(){return b},eq(k,v){rows=rows.filter(x=>x[k]===v);return b},order(){return b},limit(n){rows=rows.slice(0,n);return b},lte(){return b},gt(){return b},single(){one=true;return b},then(ok,fail){return Promise.resolve({data:one?rows[0]:rows,error:null}).then(ok,fail)}};return b}
 window.supabase={createClient(){return {auth:{getSession:async()=>({data:{session:user?{user}:null},error:null})},from:builder,rpc:async(n)=>({data:n==='admin_overview'?{games:3,users:1,pending:0,published:3,plays:0,ratings:0,members:1,developers:0,applications:0}:[],error:null})}}};
 }.toString()+')('+JSON.stringify(role)+');';await route.fulfill({contentType:'application/javascript',body})});
-await page.goto(base);await page.waitForSelector('.arena-profile');await page.locator('#app .hero').waitFor();
+await page.goto(base);await page.waitForSelector('.arena-profile').catch(async e=>{throw Error('Portal load failed: '+(await page.locator('#app').innerText())+' / '+errors.join('; ')+' / '+e.message)});await page.locator('#app .hero').waitFor();
 assert.equal(await page.locator('#cards .card').count(),3);
 assert.equal(await page.locator('#nav button').filter({hasText:/Admin|Developer|Studio/}).count(),0);
 if(name==='mobile'){assert(await page.locator('#arenaBottom8').isVisible());assert(!(await page.locator('#nav .portal-link').first().isVisible()));}
