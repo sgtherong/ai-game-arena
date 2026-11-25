@@ -1,0 +1,44 @@
+name: Skyline Courier candidate package
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'games/skyline-courier/**'
+      - 'tests/courier-package.mjs'
+      - '.github/workflows/courier-package.yml'
+permissions:
+  contents: read
+concurrency:
+  group: courier-package-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.51.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/courier-package.mjs
+      - name: Make exact source ZIP
+        run: |
+          python3 - <<'PY'
+          import zipfile,pathlib
+          source=pathlib.Path('games/skyline-courier/index.html')
+          output=pathlib.Path('courier-review/skyline-courier-v1.0.zip')
+          assert source.stat().st_size<60000
+          with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:z.write(source,'index.html')
+          assert output.stat().st_size<2*1024*1024
+          print('Package:',output,output.stat().st_size,'bytes')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skyline-courier-review-bundle
+          path: courier-review/
+          retention-days: 7
