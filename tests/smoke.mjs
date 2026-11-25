@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve, extname } from 'node:path';
-const root=process.cwd(), types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css; charset=utf-8','.xml':'application/xml'};
+const root=process.cwd(), types={'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.xml':'application/xml'};
 const server=createServer(async(req,res)=>{try{let url=new URL(req.url,'http://localhost');let path=resolve(root,'.'+url.pathname+(url.pathname.endsWith('/')?'index.html':''));if(!path.startsWith(root+'/'))throw Error('invalid path');let data=await readFile(path);res.writeHead(200,{'content-type':types[extname(path)]||'text/plain'});res.end(data)}catch{res.writeHead(404);res.end('Not found')}});
 await new Promise(ok=>server.listen(0,'127.0.0.1',ok));const base='http://127.0.0.1:'+server.address().port+'/';
 const source=await readFile('index.html','utf8');for(const m of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(m[1].trim())new Function(m[1]);
@@ -21,6 +21,7 @@ window.supabase={createClient(){return {auth:{getSession:async()=>({data:{sessio
 }.toString()+')('+JSON.stringify(role)+');';await route.fulfill({contentType:'application/javascript',body})});
 await page.route('https://api.github.com/**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({workflow_runs:[]})}));
 await page.goto(base);await page.waitForSelector('.arena-profile').catch(async e=>{throw Error('Portal load failed: '+(await page.locator('#app').innerText())+' / '+errors.join('; ')+' / '+e.message)});await page.locator('#app .hero').waitFor();
+assert.match(await page.title(),/AI GAMENOVENT/);assert.equal(await page.locator('header .logo').getAttribute('aria-label'),'AI GAMENOVENT');assert.equal(await page.locator('link[rel=icon]').getAttribute('href'),'assets/gamenovent-mark.svg');assert.equal(await page.locator('header .logo img').evaluate(img=>img.complete&&img.naturalWidth>0),true);
 assert.equal(await page.locator('#cards .card').count(),3);
 assert.equal(await page.locator('.practice100-link').getAttribute('href'),'practice/');
 await page.locator('.cqs-tabs96 button').filter({hasText:'Service games'}).click();assert.equal(await page.locator('#cards .card').count(),0);await page.locator('.cqs-tabs96 button').filter({hasText:'Test Lab'}).click();assert.equal(await page.locator('#cards .card').count(),3);
@@ -33,7 +34,7 @@ assert.deepEqual(errors,[],name+' page errors');await context.close();console.lo
 }
 for(const [name,viewport,mobile] of [['practice-desktop',{width:1280,height:900},false],['practice-mobile',{width:390,height:844},true]]){
  const context=await browser.newContext({viewport,hasTouch:mobile,isMobile:mobile});const page=await context.newPage();let errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base+'practice/');await page.locator('.game-card').first().waitFor();assert.equal(await page.locator('.game-card').count(),7);
+ await page.goto(base+'practice/');await page.locator('.game-card').first().waitFor();assert.match(await page.title(),/AI GAMENOVENT/);assert.match(await page.locator('header .brand').innerText(),/AI GAMENOVENT/);assert.equal(await page.locator('.game-card').count(),7);
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),name+' horizontal overflow');
  for(const id of ['meteor','courier','breaker','signal','circuit','runner','pulse']){
   await page.locator('button[data-game="'+id+'"]').click();await page.locator('#difficulty').selectOption('hard');assert(await page.locator('#goal-text').innerText());await page.locator('#start').click();assert(await page.locator('#difficulty').isDisabled());await page.locator('#overlay').waitFor({state:'hidden'});
@@ -64,5 +65,5 @@ for(const [name,viewport,mobile] of [['courier-desktop',{width:1280,height:900},
  await page.locator('#quit').click();await page.locator('#garage').click();await page.locator('#menu').waitFor({state:'visible'});
  await page.locator('#lang').click();assert.equal(await page.locator('html').getAttribute('lang'),'ko');assert.deepEqual(errors,[],name+' page errors');await context.close();console.log('PASS '+name);
 }
-for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html','practice/','practice/lab.js','practice/lab.css','games/skyline-courier/']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
+for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html','practice/','practice/lab.js','practice/lab.css','games/skyline-courier/','assets/gamenovent-mark.svg','assets/gamenovent-logo.svg']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
 }finally{await browser.close();server.close()}
