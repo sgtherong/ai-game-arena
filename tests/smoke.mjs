@@ -22,6 +22,7 @@ window.supabase={createClient(){return {auth:{getSession:async()=>({data:{sessio
 await page.route('https://api.github.com/**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({workflow_runs:[]})}));
 await page.goto(base);await page.waitForSelector('.arena-profile').catch(async e=>{throw Error('Portal load failed: '+(await page.locator('#app').innerText())+' / '+errors.join('; ')+' / '+e.message)});await page.locator('#app .hero').waitFor();
 assert.equal(await page.locator('#cards .card').count(),3);
+assert.equal(await page.locator('.practice100-link').getAttribute('href'),'practice/');
 await page.locator('.cqs-tabs96 button').filter({hasText:'Service games'}).click();assert.equal(await page.locator('#cards .card').count(),0);await page.locator('.cqs-tabs96 button').filter({hasText:'Test Lab'}).click();assert.equal(await page.locator('#cards .card').count(),3);
 assert.equal(await page.locator('#nav button').filter({hasText:/Admin|Developer|Studio/}).count(),0);
 if(name==='mobile'){assert(await page.locator('#arenaBottom8').isVisible());assert(!(await page.locator('#nav .portal-link').first().isVisible()));}
@@ -30,5 +31,24 @@ await page.locator('header .logo').click();await page.locator('#cards').waitFor(
 if(role==='admin'){await page.locator('.arena-profile summary').click();await page.locator('.arena-profile button').filter({hasText:'Admin Console'}).click();await page.locator('#arenaSide8').waitFor();assert(await page.locator('#arenaSide8').isVisible());assert.equal(await page.locator('#nav .portal-link').count(),0);await page.locator('#arenaSide8 button').filter({hasText:'QA & AI budget'}).click();await page.getByRole('heading',{name:'QA & AI budget'}).waitFor();assert.equal(await page.getByLabel('Daily global call cap').inputValue(),'10');assert.equal(await page.getByLabel('Monthly global call cap').inputValue(),'100');assert.equal(await page.getByLabel('Enable paid AI action planner').isChecked(),false);await page.locator('#arenaSide8 button').filter({hasText:'Review queue'}).click();await page.getByText('CQS must complete with ≥60 before approval.').waitFor();await page.getByText('Requested runtime QA must pass before approval.').waitFor();assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);await page.locator('.arena-profile summary').click();await page.locator('.arena-profile button').filter({hasText:'Creator Studio'}).click();await page.locator('#arenaSide8 button').filter({hasText:'My games / Submit'}).click();await page.locator('.cqs-form96').waitFor();assert.equal(await page.locator('.cqs-form96 input[type=file]').getAttribute('multiple'),'');}
 assert.deepEqual(errors,[],name+' page errors');await context.close();console.log('PASS '+name);
 }
-for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
+for(const [name,viewport,mobile] of [['practice-desktop',{width:1280,height:900},false],['practice-mobile',{width:390,height:844},true]]){
+ const context=await browser.newContext({viewport,hasTouch:mobile,isMobile:mobile});const page=await context.newPage();let errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'practice/');await page.locator('.game-card').first().waitFor();assert.equal(await page.locator('.game-card').count(),7);
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),name+' horizontal overflow');
+ for(const id of ['meteor','courier','breaker','signal','circuit','runner','pulse']){
+  await page.locator('button[data-game="'+id+'"]').click();await page.locator('#start').click();await page.locator('#overlay').waitFor({state:'hidden'});
+  const before=await page.locator('#canvas').evaluate(c=>c.toDataURL());const b=await page.locator('#canvas').boundingBox();assert(b&&b.width>0);
+  if(mobile){await page.touchscreen.tap(b.x+b.width*.5,b.y+b.height*.5);await page.locator('#right').tap();await page.locator('#action').tap()}
+  else{await page.mouse.click(b.x+b.width*.5,b.y+b.height*.5);await page.keyboard.press('ArrowRight');await page.keyboard.press('Space')}
+  await page.waitForTimeout(350);
+  assert(await page.locator('#time').isVisible(),id+' HUD visible');
+  const after=await page.locator('#canvas').evaluate(c=>c.toDataURL());assert.notEqual(after,'data:,',id+' canvas readable');
+  await page.locator('#pause').click();await page.locator('#overlay').waitFor({state:'visible'});await page.locator('#start').click();await page.locator('#overlay').waitFor({state:'hidden'});
+  await page.locator('#back').click();await page.locator('#catalog').waitFor({state:'visible'});
+  console.log('PASS '+name+' '+id);
+ }
+ await page.locator('#language').click();assert.equal(await page.locator('html').getAttribute('lang'),'ko');assert.equal(await page.locator('.game-card').count(),7);
+ assert.deepEqual(errors,[],name+' page errors');await context.close();
+}
+for(const path of ['games/neon/','games/orbit/','games/tiles/','sitemap.xml','policies/terms.html','policies/privacy.html','policies/submissions.html','practice/','practice/lab.js','practice/lab.css']){let r=await fetch(base+path);assert.equal(r.status,200,path);console.log('PASS '+path)}
 }finally{await browser.close();server.close()}
